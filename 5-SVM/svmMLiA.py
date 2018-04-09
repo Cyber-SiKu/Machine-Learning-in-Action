@@ -135,31 +135,31 @@ class optStruct:
         # 误差缓存 [i, j] 所以(self.m, 2)的格式
         self.eCache = mat(zeros((self.m, 2)))
 
-    def calcEk(oS, k):
-        fXk = float(multiply(oS.alphas, oS.labelMat).T*(oS.X*oS.X[k,:].T)) + oS.b
-        Ek = fXk - float(oS.labelMat[k])
-        return Ek
+def calcEk(oS, k):
+    fXk = float(multiply(oS.alphas, oS.labelMat).T*(oS.X*oS.X[k,:].T)) + oS.b
+    Ek = fXk - float(oS.labelMat[k])
+    return Ek
 
-    def selectJ(i, oS, Ei):
-        # 内循环中的启发式方法
-        maxK = -1; maxDeltaE = 0; Ej = 0
-        oS.eCache[i] = [1, Ei]
-        validEcacheList = nonzero(oS.eCache[:, 0].A)[0] # nonzero() 返回 数组中非零元素的信息
-        if (len(validEcacheList)) > 1:
-            for k in validEcacheList:
-                if k ==i:
-                    continue
-                Ek = calcEk(oS, k)
-                deltaE = abs(Ei - Ek)
-                # （以下两行）选择具有最大步长的j
-                if (deltaE > maxDeltaE):
-                    maxK = k; maxDeltaE = deltaE;Ej = Ek
-            return maxK, Ej
-        else:
-            j = selectJrand(i, oS.m)
-            Ej = calcEk(oS, j)
-        return j, Ej
+def selectJ(i, oS, Ei):
+    # 内循环中的启发式方法
+    maxK = -1; maxDeltaE = 0; Ej = 0
+    oS.eCache[i] = [1, Ei]
+    validEcacheList = nonzero(oS.eCache[:, 0].A)[0] # nonzero() 返回 数组中非零元素的信息
+    if (len(validEcacheList)) > 1:
+        for k in validEcacheList:
+            if k ==i:
+                continue
+            Ek = calcEk(oS, k)
+            deltaE = abs(Ei - Ek)
+            # （以下两行）选择具有最大步长的j
+            if (deltaE > maxDeltaE):
+                maxK = k; maxDeltaE = deltaE;Ej = Ek
+        return maxK, Ej
+    else:
+        j = selectJrand(i, oS.m)
+        Ej = calcEk(oS, j)
+    return j, Ej
 
-    def updateEk(oS, k):
-        Ek = calcEk(oS, k)
-        oS.eCache[k] = [1, Ek]
+def updateEk(oS, k):
+    Ek = calcEk(oS, k)
+    oS.eCache[k] = [1, Ek]

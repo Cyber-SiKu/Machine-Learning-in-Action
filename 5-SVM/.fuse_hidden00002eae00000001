@@ -22,4 +22,3 @@ ws
 dataMat = mat(dataArr)
 dataMat[0]*mat(ws)+b
 labelArr[0]
-dataMat[2]*mat(ws)+b

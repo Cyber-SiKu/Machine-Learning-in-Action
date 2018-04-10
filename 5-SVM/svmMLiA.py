@@ -2,6 +2,8 @@ import random
 from numpy import mat, nonzero, shape, zeros, multiply
 
 # 6-1 SMO 算法的辅助函数
+
+
 def loadDataSet(fileName):
     dataMat = []
     labelMat = []
@@ -41,6 +43,8 @@ def clipAlpha(aj, H, L):
     return aj
 
 # 6-2 简化的 SMO 算法
+
+
 def smoSimple(dataMatIn, classLabels, C, toler, maxIter):
     '''
     简化版SMO算法
@@ -135,31 +139,170 @@ class optStruct:
         # 误差缓存 [i, j] 所以(self.m, 2)的格式
         self.eCache = mat(zeros((self.m, 2)))
 
+
 def calcEk(oS, k):
-    fXk = float(multiply(oS.alphas, oS.labelMat).T*(oS.X*oS.X[k,:].T)) + oS.b
+    '''
+    计算E
+    calculate the deviation
+    :param oS: 缓存
+    :param k: 下标
+    :return: E
+    '''
+    fXk = float(multiply(oS.alphas, oS.labelMat).T*(oS.X*oS.X[k, :].T))+oS.b
     Ek = fXk - float(oS.labelMat[k])
     return Ek
 
+
 def selectJ(i, oS, Ei):
+    '''
+    选取有内循环的 alpha 值使得每次优化中采用最大步长
+    select the value of j to take the mast step‘lenth in every step
+    :param i: 外循环 alpha 的下标
+    :param oS: 缓存
+    :param Ei: 外循环的 alpha
+    :return: 内循环的 alpha 的下标和 alpha
+    '''
     # 内循环中的启发式方法
-    maxK = -1; maxDeltaE = 0; Ej = 0
-    oS.eCache[i] = [1, Ei]
-    validEcacheList = nonzero(oS.eCache[:, 0].A)[0] # nonzero() 返回 数组中非零元素的信息
+    maxK = -1
+    maxDeltaE = 0
+    Ej = 0
+    oS.eCache[i] = [1, Ei]  # 将输入值 Ei 在缓存中设置成有效的(已经计算好)
+    validEcacheList = nonzero(oS.eCache[:, 0].A)[0]  # 非零E值对应的 alpha 值
     if (len(validEcacheList)) > 1:
+        # 选取使得改变最大的值
         for k in validEcacheList:
-            if k ==i:
+            if k == i:
                 continue
             Ek = calcEk(oS, k)
             deltaE = abs(Ei - Ek)
-            # （以下两行）选择具有最大步长的j
+            # （以下两行）选择具有最大步长的 j
             if (deltaE > maxDeltaE):
-                maxK = k; maxDeltaE = deltaE;Ej = Ek
+                maxK = k
+                maxDeltaE = deltaE
+                Ej = Ek
         return maxK, Ej
     else:
+        # 随机选取一个 alpha
         j = selectJrand(i, oS.m)
         Ej = calcEk(oS, j)
     return j, Ej
 
+
 def updateEk(oS, k):
+    '''
+    计算误差并存入缓存
+    :param oS: 缓存
+    :param k: 要计算误差的下标
+    :return:
+    '''
     Ek = calcEk(oS, k)
     oS.eCache[k] = [1, Ek]
+
+
+# 6-4 完整的 Platt SMO 算法中的优化例程
+def innerL(i, oS):
+    '''
+    使用了数据结构 optStruct 使用selectJ() 而不是 selectJrand()来选择第二个 alpha
+    :param i: 下标
+    :param oS: 存储各种数据
+    :return: alpha是（1）否（0）改变
+    '''
+    Ei = calcEk(oS, i)
+    if ((oS.labelMat[i]*Ei < -oS.tol) and (oS.alphas[i] < oS.C)) or \
+            ((oS.labelMat[i]*Ei > oS.tol) and (oS.alphas[i] > 0)):
+        # 第二个 alpha 选择使用启发式方法
+        j, Ej = selectJ(i, oS, Ei)
+        alphaIold = oS.alphas[i].copy()
+        alphaJold = oS.alphas[j].copy()
+        if (oS.labelMat[i] != oS.labelMat[j]):
+            L = max(0, oS.alphas[j] - oS.alphas[i])
+            H = min(oS.C, oS.C + oS.alphas[j] - oS.alphas[i])
+        else:
+            L = max(0, oS.alphas[j] + oS.alphas[i] - oS.C)
+            H = min(oS.C, oS.alphas[j] + oS.alphas[i])
+        if L == H:
+            print("L==H")
+            return 0
+        eta = 2.0 * oS.X[i, :]*oS.X[j, :].T - \
+            oS.X[i, :]*oS.X[i, :].T - \
+            oS.X[j, :]*oS.X[j, :].T
+        if eta >= 0:
+            print("eta >=0 ")
+            return 0
+        oS.alphas[j] -= oS.labelMat[j]*(Ei - Ej)/eta
+        oS.alphas[j] = clipAlpha(oS.alphas[j], H, L)
+        # 更新错误差值缓存
+        updateEk(oS, j)
+        if (abs(oS.alphas[j] - alphaJold) < 0.00001):
+            print("j not moving enough")
+            return 0
+        oS.alphas[i] += oS.labelMat[j]*oS.labelMat[i]*(alphaJold - oS.alphas[j])
+        # 更新错误差缓存
+        updateEk(oS, i)
+        b1 = oS.b - Ei - \
+            oS.labelMat[i]*(oS.alphas[i]-alphaIold)*oS.X[i, :]*oS.X[i, :].T - \
+            oS.labelMat[j]*(oS.alphas[j]-alphaJold)*oS.X[i, :]*oS.X[j, :].T
+        b2 = oS.b - Ej - \
+            oS.labelMat[i] * (oS.alphas[i] - alphaIold) * oS.X[i, :] * oS.X[j, :].T - \
+            oS.labelMat[j] * (oS.alphas[j] - alphaJold) * oS.X[j, :] * oS.X[j, :].T
+        if (0 < oS.alphas[i]) and (oS.C > oS.alphas[i]):
+            oS.b = b1
+        elif (0 < oS.alphas[j]) and (oS.C > oS.alphas[j]):
+            oS.b = b2
+        else:
+            oS.b = (b1+b2)/2.0
+        return 1
+    else:
+        return 0
+
+
+# 6-5 完整版 Platt SMO 的外循环代码
+def smoP(dataMatIn, classLabels, C, toler, maxIter, kTup=('lin', 0)):
+    '''
+
+    :param dataMatIn:
+    :param classLabels:
+    :param C:
+    :param toler:
+    :param maxIter:
+    :param kTup:
+    :return:
+    '''
+    oS = optStruct(mat(dataMatIn), mat(classLabels).transpose(), C, toler)
+    iter = 0
+    entireSet = True  # 标记是否需要遍历整个Set
+    alphaPairschanged = 0
+    while (iter < maxIter) and ((alphaPairschanged > 0) or (entireSet)):
+        alphaPairschanged = 0
+        if entireSet:
+            # 遍历所有的值
+            for i in range(oS.m):
+                alphaPairschanged += innerL(i, oS)
+                print("fullSet, iter: %d i:%d, pairs changed %d" %
+                      (iter, i, alphaPairschanged))
+            iter += 1
+        else:
+            # 遍历非边界值
+            nonBoundIs = nonzero((oS.alphas.A > 0)*(oS.alphas.A < C))[0]
+            for i in nonBoundIs:
+                alphaPairschanged += innerL(i, oS)
+                print("non-bound, iter: %d i:%d, pairs changed %d" %
+                      (iter, i, alphaPairschanged))
+            iter += 1
+        if entireSet:
+            entireSet = False
+        elif (alphaPairschanged == 0):
+            entireSet = True
+        print("iteration number: %d" % iter)
+    return oS.b, oS.alphas
+
+
+# 计算 w
+def calcWs(alphas, dataAddr, classLabels):
+    X = mat(dataAddr)
+    labelMat = mat(classLabels).transpose()
+    m, n = shape(X)
+    w = zeros((n, 1))
+    for i in range(m):
+        w += multiply(alphas[i]*labelMat[i], X[i, :].T)
+    return w

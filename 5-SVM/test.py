@@ -1,5 +1,6 @@
 import svmMLiA
 from numpy import shape, mat
+from importlib import reload
 
 dataArr, labelArr = svmMLiA.loadDataSet('testSet.txt')
 labelArr
@@ -23,3 +24,7 @@ dataMat = mat(dataArr)
 dataMat[0]*mat(ws)+b
 labelArr[0]
 dataMat[2]*mat(ws)+b
+
+
+reload(svmMLiA)
+svmMLiA.testRbf()
